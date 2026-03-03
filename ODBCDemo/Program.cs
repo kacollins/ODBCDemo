@@ -1,5 +1,7 @@
-﻿using System.Data.Odbc;
+﻿using CsvHelper;
 using Microsoft.Extensions.Configuration;
+using System.Data.Odbc;
+using System.Globalization;
 
 class Program
 {
@@ -290,26 +292,10 @@ class Program
 
     static List<ActorReportRow> ReadActorReportCsv(string filePath)
     {
-        var results = new List<ActorReportRow>();
-
         using var reader = new StreamReader(filePath);
+        using var csv = new CsvReader(reader, CultureInfo.InvariantCulture);
 
-        // Skip header
-        reader.ReadLine();
-
-        while (!reader.EndOfStream)
-        {
-            var line = reader.ReadLine();
-            var parts = line.Split(',');
-
-            results.Add(new ActorReportRow
-            {
-                ActorId = int.Parse(parts[0]),
-                FirstName = parts[1],
-                LastName = parts[2],
-                FilmCount = int.Parse(parts[3])
-            });
-        }
+        var results = csv.GetRecords<ActorReportRow>().ToList();
 
         return results;
     }
