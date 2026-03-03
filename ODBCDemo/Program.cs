@@ -25,6 +25,8 @@ class Program
             GetSalesByFilmCategory(connection);
 
             GetLastDayOfCurrentMonth(connection);
+
+            //PrintActorReport(connection);
         }
         catch (OdbcException ex)
         {
@@ -184,5 +186,68 @@ class Program
         }
 
         Console.WriteLine();
+    }
+
+    private static void PrintActorReport(OdbcConnection connection)
+    {
+        int pageSize = 20;
+        int totalActors = GetFilmActorCount(connection);
+        int totalPages = (int)Math.Ceiling(totalActors / (double)pageSize);
+
+        for (int i = 1; i <= totalPages; i++)
+        {
+            PrintActorReportPage(connection, i, pageSize);
+        }
+    }
+
+    private static int GetFilmActorCount(OdbcConnection connection)
+    {
+        int count = 0;
+
+        string sql = "SELECT COUNT(DISTINCT actor_id) FROM film_actor;";
+
+        using var command = new OdbcCommand(sql, connection);
+        using var reader = command.ExecuteReader();
+
+        if (reader.Read())
+        {
+            count = reader.GetInt32(0);
+        }
+
+        return count;
+    }
+
+    static void PrintActorReportPage(OdbcConnection connection, int pageNumber, int pageSize)
+    {
+        int offset = (pageNumber - 1) * pageSize;
+
+        string sql = @"SELECT
+                        a.actor_id,
+                        a.first_name,
+                        a.last_name,
+                        COUNT(fa.film_id) AS film_count
+                    FROM actor a
+                    JOIN film_actor fa ON a.actor_id = fa.actor_id
+                    GROUP BY a.actor_id, a.first_name, a.last_name
+                    ORDER BY a.last_name, a.first_name
+                    LIMIT ?
+                    OFFSET ?;";
+
+        using var command = new OdbcCommand(sql, connection);
+        command.Parameters.AddWithValue("@PageSize", pageSize);
+        command.Parameters.AddWithValue("@Offset", offset);
+
+        using var reader = command.ExecuteReader();
+
+        Console.WriteLine($"--- Page {pageNumber} ---");
+
+        while (reader.Read())
+        {
+            string first = reader.GetString(reader.GetOrdinal("first_name"));
+            string last = reader.GetString(reader.GetOrdinal("last_name"));
+            int films = reader.GetInt32(reader.GetOrdinal("film_count"));
+
+            Console.WriteLine($"{last}, {first} ({films} films)");
+        }
     }
 }
