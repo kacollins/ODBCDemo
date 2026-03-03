@@ -26,7 +26,16 @@ class Program
 
             GetLastDayOfCurrentMonth(connection);
 
-            //PrintActorReport(connection);
+            PrintActorReport(connection);
+
+            WriteActorReportCsv(connection, "actors.csv");
+
+            var rows = ReadActorReportCsv("actors.csv");
+
+            foreach (var row in rows)
+            {
+                Console.WriteLine($"{row.ActorId}: {row.FirstName} {row.LastName} ({row.FilmCount} films)");
+            }
         }
         catch (OdbcException ex)
         {
@@ -249,5 +258,59 @@ class Program
 
             Console.WriteLine($"{last}, {first} ({films} films)");
         }
+    }
+
+    static void WriteActorReportCsv(OdbcConnection connection, string filePath)
+    {
+        string sql = @"SELECT
+                        a.actor_id,
+                        a.first_name,
+                        a.last_name,
+                        COUNT(fa.film_id) AS film_count
+                    FROM actor a
+                    JOIN film_actor fa ON a.actor_id = fa.actor_id
+                    GROUP BY a.actor_id, a.first_name, a.last_name
+                    ORDER BY a.last_name, a.first_name;";
+
+        using var command = new OdbcCommand(sql, connection);
+        using var reader = command.ExecuteReader();
+        using var writer = new StreamWriter(filePath);
+
+        writer.WriteLine("ActorId,FirstName,LastName,FilmCount");
+
+        while (reader.Read())
+        {
+            writer.WriteLine(
+                $"{reader["actor_id"]}," +
+                $"{reader["first_name"]}," +
+                $"{reader["last_name"]}," +
+                $"{reader["film_count"]}");
+        }
+    }
+
+    static List<ActorReportRow> ReadActorReportCsv(string filePath)
+    {
+        var results = new List<ActorReportRow>();
+
+        using var reader = new StreamReader(filePath);
+
+        // Skip header
+        reader.ReadLine();
+
+        while (!reader.EndOfStream)
+        {
+            var line = reader.ReadLine();
+            var parts = line.Split(',');
+
+            results.Add(new ActorReportRow
+            {
+                ActorId = int.Parse(parts[0]),
+                FirstName = parts[1],
+                LastName = parts[2],
+                FilmCount = int.Parse(parts[3])
+            });
+        }
+
+        return results;
     }
 }
